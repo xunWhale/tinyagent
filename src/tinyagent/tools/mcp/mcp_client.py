@@ -22,10 +22,23 @@ try:
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.sse import sse_client
     from mcp.client.stdio import stdio_client
-    from mcp.client.streamable_http import streamablehttp_client
+
+    try:
+        from mcp.client.streamable_http import streamable_http_client
+    except ImportError:  # mcp < 2.0 fallback
+        from mcp.client.streamable_http import (  # type: ignore[attr-defined,no-redef]
+            streamablehttp_client as streamable_http_client,
+        )
+
     from mcp.types import Tool as MCPTool
 except ImportError as e:
     missing_mcp_error = e
+    ClientSession = Any  # type: ignore[assignment]
+    StdioServerParameters = Any  # type: ignore[assignment]
+    sse_client = Any  # type: ignore[assignment]
+    stdio_client = Any  # type: ignore[assignment]
+    streamable_http_client = Any  # type: ignore[assignment]
+    MCPTool = Any  # type: ignore[assignment]
 
 
 class MCPClient(BaseModel):
@@ -65,7 +78,7 @@ class MCPClient(BaseModel):
             )
             read, write = await self._exit_stack.enter_async_context(self._client)
         elif isinstance(self.config, MCPStreamableHttp):
-            self._client = streamablehttp_client(
+            self._client = streamable_http_client(
                 url=self.config.url,
                 headers=dict(self.config.headers or {}),
             )
@@ -136,7 +149,11 @@ class MCPClient(BaseModel):
         """Create a properly typed function for an MCP tool."""
         name = tool.name
         description = tool.description or f"MCP tool: {name}"
-        input_schema = tool.inputSchema
+        # In MCP >= 2.0, Tool uses snake_case input_schema; older versions used inputSchema.
+        if hasattr(tool, "input_schema"):
+            input_schema = tool.input_schema
+        else:
+            input_schema = getattr(tool, "inputSchema", {})
 
         # Extract parameters from schema
         parameters = []

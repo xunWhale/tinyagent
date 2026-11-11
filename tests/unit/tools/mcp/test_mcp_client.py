@@ -1,5 +1,8 @@
+import importlib
 import inspect
-from typing import Optional
+import sys
+import types
+from typing import Any, Optional
 from unittest.mock import AsyncMock
 
 import pytest
@@ -111,3 +114,49 @@ async def test_create_tool_function_with_complex_schema() -> None:
     client._session = None
     error_result = await tool_func(query="test", max_results=1, include_metadata=True)
     assert "Error: MCP session not available" in error_result
+
+
+def test_mcp_client_import_without_mcp_resolves_name_error(monkeypatch):
+    """Verify that importing or reloading mcp_client without mcp does not raise NameError."""
+    import tinyagent.tools.mcp.mcp_client as mcp_module
+
+    # Mask mcp modules to simulate environment without mcp package
+    masked_modules = {
+        name: None
+        for name in list(sys.modules.keys())
+        if name == "mcp" or name.startswith("mcp.")
+    }
+    with monkeypatch.context() as m:
+        for mod, val in masked_modules.items():
+            m.setitem(sys.modules, mod, val)
+        # Reloading must not crash with NameError (e.g. MCPTool not defined)
+        reloaded = importlib.reload(mcp_module)
+        assert reloaded.missing_mcp_error is not None
+        assert reloaded.MCPTool is Any
+        assert reloaded.ClientSession is Any
+
+        # Calling MCPClient must raise clean ImportError, not NameError
+        config = MCPStdio(command="test", args=[])
+        with pytest.raises(ImportError) as exc_info:
+            reloaded.MCPClient(config=config)
+        assert "MCP support requires the `mcp` package" in str(exc_info.value)
+
+    # Restore clean module state
+    importlib.reload(mcp_module)
+
+
+def test_streamable_http_client_import_fallback(monkeypatch):
+    """Verify fallback to legacy streamablehttp_client when mcp < 2.0."""
+    import types
+    import tinyagent.tools.mcp.mcp_client as mcp_module
+
+    legacy_client_mock = object()
+    fake_streamable_mod = types.ModuleType("mcp.client.streamable_http")
+    fake_streamable_mod.streamablehttp_client = legacy_client_mock
+
+    with monkeypatch.context() as m:
+        m.setitem(sys.modules, "mcp.client.streamable_http", fake_streamable_mod)
+        reloaded = importlib.reload(mcp_module)
+        assert reloaded.streamable_http_client is legacy_client_mock
+
+    importlib.reload(mcp_module)
