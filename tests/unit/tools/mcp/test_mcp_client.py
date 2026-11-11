@@ -147,7 +147,6 @@ def test_mcp_client_import_without_mcp_resolves_name_error(monkeypatch):
 
 def test_streamable_http_client_import_fallback(monkeypatch):
     """Verify fallback to legacy streamablehttp_client when mcp < 2.0."""
-    import types
     import tinyagent.tools.mcp.mcp_client as mcp_module
 
     legacy_client_mock = object()
