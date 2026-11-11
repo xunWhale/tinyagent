@@ -159,3 +159,28 @@ def test_streamable_http_client_import_fallback(monkeypatch):
         assert reloaded.streamable_http_client is legacy_client_mock
 
     importlib.reload(mcp_module)
+
+
+def test_streamable_http_client_import_v2_mainline():
+    """Verify primary streamable_http_client import when mcp >= 2.0."""
+    import tinyagent.tools.mcp.mcp_client as mcp_module
+
+    # In modern environment, streamable_http_client is available
+    assert callable(mcp_module.streamable_http_client)
+
+
+def test_create_tool_function_legacy_camel_case_schema():
+    """Verify compatibility with legacy MCP 1.x camelCase inputSchema."""
+    class LegacyTool:
+        name = "legacy_tool"
+        description = "Legacy tool description"
+        inputSchema = {
+            "type": "object",
+            "properties": {"param": {"type": "string"}},
+            "required": ["param"],
+        }
+
+    config = MCPStdio(command="test", args=[])
+    client = MCPClient(config=config)
+    tool_func = client._create_tool_function(LegacyTool())
+    assert tool_func.__name__ == "legacy_tool"

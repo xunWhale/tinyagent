@@ -152,8 +152,10 @@ class MCPClient(BaseModel):
         # In MCP >= 2.0, Tool uses snake_case input_schema; older versions used inputSchema.
         if hasattr(tool, "input_schema"):
             input_schema = tool.input_schema
+        elif hasattr(tool, "inputSchema"):
+            input_schema = tool.inputSchema
         else:
-            input_schema = getattr(tool, "inputSchema", {})
+            input_schema = {}
 
         # Extract parameters from schema
         parameters = []
